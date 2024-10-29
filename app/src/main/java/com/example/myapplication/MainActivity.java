@@ -2,17 +2,15 @@ package com.example.myapplication;
 
 import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.app.Dialog;
-import android.widget.EditText;
 import android.widget.Button;
 import android.widget.TextView;
 
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
+import com.example.myapplication.Serialport;
 
 public class MainActivity extends AppCompatActivity {
     private Button buttonStartPause;
@@ -24,11 +22,23 @@ public class MainActivity extends AppCompatActivity {
     private TextView textViewSpeed;
     private TextView textViewIncline;
 
+    private Serialport serialPort;
+    private int fd = -1;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_main);
+
+        serialPort = new Serialport();
+        fd = serialPort.openPort("/dev/ttyS2",19200);
+        if(fd != -1){
+            //串口打开成功
+            System.out.println("===>SerialPort open success!");
+        }else {
+            System.out.println("===>SerialPort open fail!");
+        }
 
         textViewSpeed = findViewById(R.id.textViewSpeed);
         textViewIncline = findViewById(R.id.textViewIncline);
@@ -85,6 +95,10 @@ public class MainActivity extends AppCompatActivity {
     private void finishOperation() {
         isRunning = false;
         buttonStartPause.setText("Start"); // 重置按钮文字为 Start
+        speed = 0;
+        incline = 0;
+        updateInclineDisplay();
+        updateSpeedDisplay();
         // TODO: 结束操作的逻辑处理，例如重置计时或其他状态
     }
     private void showAdjustDialog(String title, int initialValue) {
@@ -163,6 +177,16 @@ public class MainActivity extends AppCompatActivity {
     // 更新坡度显示
     private void updateInclineDisplay() {
         textViewIncline.setText("当前坡度: " + incline);
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (fd != -1) {
+            // 关闭串口
+            serialPort.closePort(fd);
+            Log.d("SerialPort", "串口已关闭");
+        }
     }
 
 }
