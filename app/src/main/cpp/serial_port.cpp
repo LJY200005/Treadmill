@@ -55,6 +55,22 @@ int setSerialAtributes(int fd, int speed){
     return 0;
 }
 
+int sendData(int fd, const char* data, size_t dataSize) {
+    int bytesWritten = write(fd, data, dataSize);
+    if (bytesWritten == -1) {
+        LOGE("Failed to write data: %s (errno: %d)", strerror(errno), errno);
+    }
+    return bytesWritten;
+}
+
+int receiveData(int fd, char* buffer, size_t bufferSize) {  //这里需要知道字符长度，但是可能是变长的，还需要考虑设计
+    int bytesRead = read(fd, buffer, bufferSize);
+    if (bytesRead == -1) {
+        LOGE("Failed to read data: %s (errno: %d)", strerror(errno), errno);
+    }
+    return bytesRead;
+}
+
 extern "C"
 JNIEXPORT jint JNICALL
 Java_com_example_myapplication_Serialport_openPort(JNIEnv *env, jobject obj, jstring portName, jint baudRate) {
@@ -70,6 +86,26 @@ Java_com_example_myapplication_Serialport_openPort(JNIEnv *env, jobject obj, jst
 
     setSerialAtributes(fd, baudRate);
     return fd;
+}
+
+extern "C"
+JNIEXPORT jint JNICALL
+Java_com_example_myapplication_Serialport_sendData(JNIEnv *env, jobject obj, jint fd, jbyteArray data) {
+    jbyte *dataBytes = env->GetByteArrayElements(data, nullptr);
+    jsize dataSize = env->GetArrayLength(data);
+    int result = sendData(fd, (const char *) dataBytes, dataSize);
+    env->ReleaseByteArrayElements(data, dataBytes, JNI_ABORT);
+    return result;
+}
+
+extern "C"
+JNIEXPORT jint JNICALL
+Java_com_example_myapplication_Serialport_receiveData(JNIEnv *env, jobject obj, jint fd, jbyteArray buffer) {
+    jbyte *bufferBytes = env->GetByteArrayElements(buffer, nullptr);
+    jsize bufferSize = env->GetArrayLength(buffer);
+    int bytesRead = receiveData(fd, (char *) bufferBytes, bufferSize);
+    env->ReleaseByteArrayElements(buffer, bufferBytes, 0);
+    return bytesRead;
 }
 
 extern "C"

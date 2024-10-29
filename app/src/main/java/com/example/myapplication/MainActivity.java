@@ -1,27 +1,29 @@
 package com.example.myapplication;
 
+import android.app.Dialog;
+import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
-import android.app.Dialog;
 import android.widget.Button;
 import android.widget.TextView;
 
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
-import com.example.myapplication.Serialport;
 
 public class MainActivity extends AppCompatActivity {
-    private Button buttonStartPause;
-    private Button buttonFinish;
-    private int speed= 0;
-    private int incline = 0;
-    private boolean isRunning = false;
+    public static Button buttonStartPause;
+    public static Button buttonFinish;
+    public static Button buttonSpeed;
+    public static Button buttonIncline;
+    public static boolean isRunning = false;
+    public static int speed= 0;
+    public static int incline = 0;
 
-    private TextView textViewSpeed;
-    private TextView textViewIncline;
-
+    public static TextView textViewSpeed;
+    public static TextView textViewIncline;
+    public static Dialog dialog;
     private Serialport serialPort;
     private int fd = -1;
 
@@ -31,7 +33,10 @@ public class MainActivity extends AppCompatActivity {
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_main);
 
+        dialog = new Dialog(this);
         serialPort = new Serialport();
+
+        //串口初始化
         fd = serialPort.openPort("/dev/ttyS2",19200);
         if(fd != -1){
             //串口打开成功
@@ -39,70 +44,20 @@ public class MainActivity extends AppCompatActivity {
         }else {
             System.out.println("===>SerialPort open fail!");
         }
-
-        textViewSpeed = findViewById(R.id.textViewSpeed);
-        textViewIncline = findViewById(R.id.textViewIncline);
-
-        buttonStartPause = findViewById(R.id.buttonStartPause);
-        buttonFinish = findViewById(R.id.buttonFinish);
-
-        // 设置 Start/Pause 按钮的点击事件
-        buttonStartPause.setOnClickListener(v -> {
-            if (isRunning) {
-                pause(); // 如果正在运行，点击按钮会暂停
-            } else {
-                start(); // 如果未运行，点击按钮会开始
-            }
-        });
-
-        // 设置 Finish 按钮的点击事件
-        buttonFinish.setOnClickListener(v -> finishOperation());
-
-        // 读取保存的速度和坡度值
-        SharedPreferences sharedPreferences = getSharedPreferences("TreadmillPrefs", MODE_PRIVATE);
-        speed = sharedPreferences.getInt("speed", 0);    // 读取速度，默认值为 0
-        incline = sharedPreferences.getInt("incline", 0); // 读取坡度，默认值为 0
-
-        updateSpeedDisplay();
-        updateInclineDisplay();
-
-        Button buttonSpeed = findViewById(R.id.buttonSpeed);
-        Button buttonIncline = findViewById(R.id.buttonIncline);
-
-        // 设置速度按钮点击事件
-        buttonSpeed.setOnClickListener(v -> showAdjustDialog("速度", speed));
-        // 设置坡度按钮点击事件
-        buttonIncline.setOnClickListener(v -> showAdjustDialog("坡度", incline));
-
-
+        updateUI();
     }
 
-    // 开始操作
-    private void start() {
-        isRunning = true;
-        buttonStartPause.setText("Pause"); // 修改按钮文字为 Pause
-        // TODO: 开始相关的逻辑处理，例如计时或其他操作
-    }
-
-    // 暂停操作
-    private void pause() {
-        isRunning = false;
-        buttonStartPause.setText("Start"); // 修改按钮文字为 Start
-        // TODO: 暂停相关的逻辑处理
-    }
-
-    // 完成操作，重置状态
-    private void finishOperation() {
-        isRunning = false;
-        buttonStartPause.setText("Start"); // 重置按钮文字为 Start
-        speed = 0;
-        incline = 0;
-        updateInclineDisplay();
-        updateSpeedDisplay();
-        // TODO: 结束操作的逻辑处理，例如重置计时或其他状态
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (fd != -1) {
+            // 关闭串口
+            serialPort.closePort(fd);
+            Log.d("SerialPort", "串口已关闭");
+        }
     }
     private void showAdjustDialog(String title, int initialValue) {
-        Dialog dialog = new Dialog(this);
+
         dialog.setContentView(R.layout.dialog_adjust_value);
 
         TextView dialogTitle = dialog.findViewById(R.id.dialogTitle);
@@ -151,42 +106,67 @@ public class MainActivity extends AppCompatActivity {
         dialog.show();
     }
 
-    public void onValueChanged(String title,int newValue){
+    public void updateUI(){
+        textViewSpeed = findViewById(R.id.textViewSpeed);
+        textViewIncline = findViewById(R.id.textViewIncline);
+        buttonStartPause = findViewById(R.id.buttonStartPause);
+        buttonFinish = findViewById(R.id.buttonFinish);
+        buttonSpeed = findViewById(R.id.buttonSpeed);
+        buttonIncline = findViewById(R.id.buttonIncline);
+
+        // 设置 Start/Pause 按钮的点击事件
+        buttonStartPause.setOnClickListener(v -> {
+            if (MainActivity.isRunning) {
+                Status.pause(); // 如果正在运行，点击按钮会暂停
+            } else {
+                Status.start(); // 如果未运行，点击按钮会开始
+            }
+        });
+
+        buttonFinish.setOnClickListener(v -> {
+            onValueChanged("速度",0);
+            onValueChanged("坡度",0);
+            Status.finishOperation();
+        });
+
+        // 读取保存的速度和坡度值
+        SharedPreferences sharedPreferences = getSharedPreferences("TreadmillPrefs", MODE_PRIVATE);
+        speed = sharedPreferences.getInt("speed", 0);    // 读取速度，默认值为 0
+        incline = sharedPreferences.getInt("incline", 0); // 读取坡度，默认值为 0
+
+        updateSpeedDisplay();
+        updateInclineDisplay();
+
+        // 设置速度按钮点击事件
+        MainActivity.buttonSpeed.setOnClickListener(v -> showAdjustDialog("速度", MainActivity.speed));
+        // 设置坡度按钮点击事件
+        MainActivity.buttonIncline.setOnClickListener(v -> showAdjustDialog("坡度", MainActivity.incline));
+    }
+
+    public void onValueChanged(String title, int newValue){
+        Context context = null;
         if (title.equals("速度")) {
-            speed = newValue;
+            MainActivity.speed = newValue;
             updateSpeedDisplay();
         } else if (title.equals("坡度")) {
-            incline = newValue;
+            MainActivity.incline = newValue;
             updateInclineDisplay();
         }
 
         // 如果需要保存新值到本地，可以使用 SharedPreferences
         SharedPreferences sharedPreferences = getSharedPreferences("TreadmillPrefs", MODE_PRIVATE);
         SharedPreferences.Editor editor = sharedPreferences.edit();
-        editor.putInt("speed", speed);
-        editor.putInt("incline", incline);
+        editor.putInt("speed", MainActivity.speed);
+        editor.putInt("incline", MainActivity.incline);
         editor.apply();
-
-
     }
     // 更新速度显示
-    private void updateSpeedDisplay() {
-        textViewSpeed.setText("当前速度: " + speed + "Km/h");
+    public  static void updateSpeedDisplay() {
+        MainActivity.textViewSpeed.setText("当前速度: " + MainActivity.speed + "Km/h");
     }
 
     // 更新坡度显示
-    private void updateInclineDisplay() {
-        textViewIncline.setText("当前坡度: " + incline);
+    public static void updateInclineDisplay() {
+        MainActivity.textViewIncline.setText("当前坡度: " + MainActivity.incline);
     }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        if (fd != -1) {
-            // 关闭串口
-            serialPort.closePort(fd);
-            Log.d("SerialPort", "串口已关闭");
-        }
-    }
-
 }
