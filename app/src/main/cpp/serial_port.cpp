@@ -28,7 +28,7 @@
 
 #define LOG_TAG "SerialPortNative"
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
-
+#define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
 
 int setSerialAtributes(int fd, int buardRate){
     struct termios tty;
@@ -46,13 +46,19 @@ int setSerialAtributes(int fd, int buardRate){
 
     cfsetospeed(&tty, speed);
     cfsetispeed(&tty, speed);
+    //配置为原始模式
+    cfmakeraw(&tty);
+    //禁用软件流控制
+    tty.c_cflag &= ~(IXON | IXOFF | IXANY);
 
     tty.c_cflag |= (CLOCAL | CREAD);    //使能接受，设置本地模式
+    tty.c_cflag &= ~CRTSCTS;
     tty.c_cflag &= ~CSIZE;
     tty.c_cflag |= CS8;              // 8-bit characters
 
     tty.c_cflag &= ~(PARENB | PARODD); // No parity
     tty.c_cflag &= ~CSTOPB;            // 1 stop bit
+    tty.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
 
     if (tcsetattr(fd, TCSANOW, &tty) != 0) {
         perror("tcsetattr");
@@ -74,6 +80,8 @@ int receiveData(int fd, char* buffer, size_t bufferSize) {  //这里需要知道
     if (bytesRead == -1) {
         LOGE("Failed to read data: %s (errno: %d)", strerror(errno), errno);
     }
+    else
+//        LOGD("Read data: %s (errno: %d)", strerror(errno), errno);
     return bytesRead;
 }
 

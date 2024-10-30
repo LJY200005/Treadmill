@@ -121,6 +121,24 @@
             android:text="  当前坡度: 0  "
             android:textSize="24sp" />
 
+        <TextView
+            android:id="@+id/textViewTargetSpeed"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:background="#FAB901"
+            android:text="  目标速度: 0 Km/h  "
+            android:textSize="24sp" />
+
+        <TextView
+            android:id="@+id/textViewTargertIncline"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:background="#8946AE"
+            android:text="  目标坡度: 0  "
+            android:textSize="24sp" />
+
 
     </LinearLayout>
 
