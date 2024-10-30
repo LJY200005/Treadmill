@@ -30,9 +30,15 @@
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 
-int setSerialAtributes(int fd, int speed){
+int setSerialAtributes(int fd, int buardRate){
     struct termios tty;
-
+    speed_t speed;
+    switch (buardRate) {
+        case 9600: speed = B9600;break;
+        case 19200: speed = B19200;break;
+        case 57600: speed = B57600;break;
+        case 115200: speed = B115200;break;
+    }
     if(tcgetattr(fd, &tty) != 0){
         perror("tcgetattr");
         return -1;
@@ -90,7 +96,7 @@ Java_com_example_myapplication_Serialport_openPort(JNIEnv *env, jobject obj, jst
 
 extern "C"
 JNIEXPORT jint JNICALL
-Java_com_example_myapplication_Serialport_sendData(JNIEnv *env, jobject obj, jint fd, jbyteArray data) {
+Java_com_example_myapplication_Send_sendData(JNIEnv *env, jobject obj, jint fd, jbyteArray data) {
     jbyte *dataBytes = env->GetByteArrayElements(data, nullptr);
     jsize dataSize = env->GetArrayLength(data);
     int result = sendData(fd, (const char *) dataBytes, dataSize);
@@ -100,7 +106,7 @@ Java_com_example_myapplication_Serialport_sendData(JNIEnv *env, jobject obj, jin
 
 extern "C"
 JNIEXPORT jint JNICALL
-Java_com_example_myapplication_Serialport_receiveData(JNIEnv *env, jobject obj, jint fd, jbyteArray buffer) {
+Java_com_example_myapplication_Recevie_receiveData(JNIEnv *env, jobject obj, jint fd, jbyteArray buffer) {
     jbyte *bufferBytes = env->GetByteArrayElements(buffer, nullptr);
     jsize bufferSize = env->GetArrayLength(buffer);
     int bytesRead = receiveData(fd, (char *) bufferBytes, bufferSize);
