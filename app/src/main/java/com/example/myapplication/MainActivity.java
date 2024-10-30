@@ -8,6 +8,8 @@ import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.os.CountDownTimer;
 import android.os.Handler;
+import android.os.HandlerThread;
+import android.os.Looper;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
@@ -35,7 +37,12 @@ public class MainActivity extends AppCompatActivity {
     public static TextView textViewIncline;
     public static Dialog dialog;
     private Serialport serialPort;
+    private TreadmillManager treadmillManager;
     private int fd = -1;
+
+    private HandlerThread handlerThread;
+    private Handler backgroundHandler;
+    private Handler mainHandler;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -45,28 +52,45 @@ public class MainActivity extends AppCompatActivity {
 
         dialog = new Dialog(this);
         serialPort = new Serialport();
+        treadmillManager = new TreadmillManager("/dev/ttyS2",19200);
+        // 创建 HandlerThread
+        handlerThread = new HandlerThread("DataHandlerThread");
+        handlerThread.start();
 
-        //串口初始化
-        fd = serialPort.openPort("/dev/ttyS2",19200);
-        if(fd != -1){
-            //串口打开成功
-            System.out.println("===>SerialPort open success!");
-        }else {
-            System.out.println("===>SerialPort open fail!");
-        }
+        // 创建 Handler 用于处理背景线程的任务
+        backgroundHandler = new Handler();
 
-        //UI界面更新
-        updateUI();
+        // 创建主线程 Handler
+        mainHandler = new Handler(Looper.getMainLooper());
+
+        backgroundHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                backgroundHandler.postDelayed(this,100);
+                //初始化串口
+                treadmillManager.controlDevice("startDevice");
+                System.out.println("===>gooooooooooo");
+//                treadmillManager.controlDevice("setSpeed");
+//                treadmillManager.controlDevice("setIncline");
+                //处理串口数据的收发
+//                String receivedData = readFromSerialPort();
+                // 将数据发送到主线程进行UI更新
+                mainHandler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        //UI界面更新
+                        updateUI();
+                    }
+                });
+            }
+        });
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (fd != -1) {
-            // 关闭串口
-            serialPort.closePort(fd);
-            Log.d("SerialPort", "串口已关闭");
-        }
+        treadmillManager.controlDevice("stopDevice");
+        treadmillManager.closeport();
     }
 
     private void showAdjustDialog(String title, int initialValue) {
@@ -130,7 +154,9 @@ public class MainActivity extends AppCompatActivity {
         timerTextView = findViewById(R.id.timer_text_view); // 假设布局中增加了此 TextView
 
         // 设置 Start/Pause 按钮的点击事件
-        buttonStart.setOnClickListener(v ->handleStartPause());
+        buttonStart.setOnClickListener(v ->{
+            handleStartPause();
+        });
         //发送启动设备指令，收到启动秒数，将其修改为启动时间，到达启动时间后，发送目标坡度和目标速度。
         buttonPause.setOnClickListener(v -> pauseTimer());
 
@@ -150,7 +176,10 @@ public class MainActivity extends AppCompatActivity {
         updateInclineDisplay();
 
         // 设置速度按钮点击事件
-        MainActivity.buttonSpeed.setOnClickListener(v -> showAdjustDialog("速度", MainActivity.speed));
+        MainActivity.buttonSpeed.setOnClickListener(v -> {
+            showAdjustDialog("速度", MainActivity.speed);
+
+        });
         // 设置坡度按钮点击事件
         MainActivity.buttonIncline.setOnClickListener(v -> showAdjustDialog("坡度", MainActivity.incline));
     }
