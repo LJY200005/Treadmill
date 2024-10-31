@@ -24,7 +24,6 @@ public class MainActivity extends AppCompatActivity {
     public static Button buttonFinish;
     public static Button buttonSpeed;
     public static Button buttonIncline;
-//    public static boolean isRunning = false;
 
     public static int high_speed = 20;
     public static byte low_speed = 1;
@@ -58,13 +57,10 @@ public class MainActivity extends AppCompatActivity {
     public static Dialog dialog;
     private Serialport serialPort;
     private static TreadmillManager treadmillManager;
-//    private int fd = -1;
 
-    private HandlerThread handlerThread;
     private Handler backgroundHandler;
     private Handler mainHandler;
     //此处判断【确认】按钮是否按下
-    private boolean flag_confrim = false;
     public static  int devState = 0;
 
     @Override
@@ -76,9 +72,6 @@ public class MainActivity extends AppCompatActivity {
         dialog = new Dialog(this);
         serialPort = new Serialport();
         treadmillManager = new TreadmillManager("/dev/ttyS2",19200);
-        // 创建 HandlerThread
-//        handlerThread = new HandlerThread("DataHandlerThread");
-//        handlerThread.start();
 
         // 创建 Handler 用于处理背景线程的任务
         backgroundHandler = new Handler();
@@ -87,15 +80,11 @@ public class MainActivity extends AppCompatActivity {
         backgroundHandler.post(new Runnable() {
             @Override
             public void run() {
-                backgroundHandler.postDelayed(this,1000);
+                backgroundHandler.postDelayed(this,500);
                 //设备状态检测
-//                checkDeviceState();
-//                if(devState == 3 || devState == 4){//running状态 || stopping状态
-//                    onValueChanged_actual();    //更新当前速度，当前坡度，正计时间，正计距离信息
-//                }
-//                System.out.println("===>gooooooooooo");
-
-                // 将数据发送到主线程进行UI更新
+                checkDeviceState();
+                //System.out.println("===>gooooooooooo");
+                //将数据发送到主线程进行UI更新
                 mainHandler.post(new Runnable() {
                     @Override
                     public void run() {
@@ -177,7 +166,6 @@ public class MainActivity extends AppCompatActivity {
             // 调用回调，将新值传递给 MainActivity
             onValueChanged_target(title,newValue);
             dialog.dismiss();
-            flag_confrim = true;        //点击确认需要重新发送目标速度坡度
         });
 
         dialog.show();
@@ -202,21 +190,7 @@ public class MainActivity extends AppCompatActivity {
         buttonStart.setOnClickListener(v ->{
             handleStart();
         });
-//        treadmillManager.controlDevice("setSpeed");
 
-        if(actual_tartget_speed != tartget_speed){
-            byte[] frame = new byte[15];
-            treadmillManager.controlDevice("setSpeed");
-            treadmillManager.receiveprot(frame);
-            treadmillManager.Frameanalyze(frame);
-        }
-//        treadmillManager.controlDevice("setIncline");
-        if(actual_tartget_incline != tartget_incline){
-            byte[] frame = new byte[15];
-            treadmillManager.controlDevice("setIncline");
-            treadmillManager.receiveprot(frame);
-            treadmillManager.Frameanalyze(frame);
-        }
         //检测暂停按钮是否按下
         buttonPause.setOnClickListener(v -> {
             handlePause();
@@ -302,9 +276,7 @@ public class MainActivity extends AppCompatActivity {
             treadmillManager.controlDevice("setSpeed");
             treadmillManager.receiveprot(frame);
             treadmillManager.Frameanalyze(frame);
-//            while(actual_tartget_speed == 0){
-//
-//            }
+
             updateTargetSpeedDisplay();
         } else if (title.equals("坡度")) {
             MainActivity.tartget_incline = newValue;
@@ -312,9 +284,7 @@ public class MainActivity extends AppCompatActivity {
             treadmillManager.controlDevice("setIncline");
             treadmillManager.receiveprot(frame);
             treadmillManager.Frameanalyze(frame);
-//            while(actual_tartget_incline == 0){
-//
-//            }
+
             updateTargetInclineDisplay();
         }
 
@@ -325,7 +295,7 @@ public class MainActivity extends AppCompatActivity {
         editor.putInt("incline", MainActivity.tartget_incline);
         editor.apply();
     }
-    public void onValueChanged_actual(){
+    public static void onValueChanged_actual(){
         updateSpeedDisplay();
         updateInclineDisplay();
         updateTimerDisplay();
@@ -348,17 +318,17 @@ public class MainActivity extends AppCompatActivity {
 
     // 更新目标坡度显示
     private static void updateTargetInclineDisplay() {
-        MainActivity.textViewTargetIncline.setText("目标坡度: " + MainActivity.actual_tartget_incline);//!注意这里要读什么数据？
+        MainActivity.textViewTargetIncline.setText("目标坡度: " + MainActivity.tartget_incline);//!注意这里要读什么数据？
     }
 
     // 更新正计时间显示
     public  static void updateTimerDisplay() {
-        MainActivity.timerTextView.setText("Elapsed Time: " + MainActivity.totaltime + "s");
+        MainActivity.timerTextView.setText("Elapsed Time: " + MainActivity.totaltime / 100000 + "s");
     }
 
     // 更新正计距离显示
     private static void updatedistanceDisplay() {
-        MainActivity.distanceTextView.setText("Distance:" + MainActivity.totalmeter + "m");
+        MainActivity.distanceTextView.setText("Distance:" + MainActivity.totalmeter / 10000 + "m");
     }
     /*点击开始按钮
      * 1.发送启动设备指令，收到启动秒数，将其修改为启动时间
@@ -377,18 +347,6 @@ public class MainActivity extends AppCompatActivity {
         treadmillManager.receiveprot(frame);
         treadmillManager.Frameanalyze(frame);
 
-//        //发送目标速度，目标坡度
-//        while(actual_tartget_speed == 0){
-//            treadmillManager.controlDevice("setSpeed");
-//            treadmillManager.receiveprot(frame);
-//            treadmillManager.Frameanalyze(frame);
-//        }
-//
-//        while(actual_tartget_incline == 0){
-//            treadmillManager.controlDevice("setIncline");
-//            treadmillManager.receiveprot(frame);
-//            treadmillManager.Frameanalyze(frame);
-//        }
     }
 
     /*点击暂停按钮
@@ -402,7 +360,6 @@ public class MainActivity extends AppCompatActivity {
             isPaused = true;
         }
         treadmillManager.controlDevice("pauseDevice");
-
     }
     /*点击STOP按钮
      * 1.发送停止设备控制指令
@@ -442,5 +399,8 @@ public class MainActivity extends AppCompatActivity {
         byte[] frame = new byte[15];
         treadmillManager.receiveprot(frame);
         devState = treadmillManager.Frameanalyze(frame);
+        if(devState == 3 || devState == 4){//running状态 || stopping状态
+                    onValueChanged_actual();    //更新当前速度，当前坡度，正计时间，正计距离信息
+        }
     }
 }

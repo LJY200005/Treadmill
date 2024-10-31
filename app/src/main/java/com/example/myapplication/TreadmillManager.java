@@ -46,9 +46,7 @@ public class TreadmillManager {
 
     public void controlDevice(String operation) {
         switch (operation){
-            case "startDevice" :
-                serialComm.sendData(fd,deviceControl.startDevice());
-            break;
+            case "startDevice" : serialComm.sendData(fd,deviceControl.startDevice());break;
             case "stopDevice" : serialComm.sendData(fd,deviceControl.stopDevice()); break;
             case "pauseDevice" : serialComm.sendData(fd,deviceControl.pauseDevice()); break;
             case "setSpeed" : serialComm.sendData(fd,deviceControl.setSpeed((byte) (MainActivity.tartget_speed*10))); break;
