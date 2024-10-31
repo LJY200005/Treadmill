@@ -10,7 +10,6 @@ import android.os.CountDownTimer;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Looper;
-import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
@@ -25,28 +24,31 @@ public class MainActivity extends AppCompatActivity {
     public static Button buttonFinish;
     public static Button buttonSpeed;
     public static Button buttonIncline;
-    public static boolean isRunning = false;
+//    public static boolean isRunning = false;
 
-    public static byte high_speed = 0;
-    public static byte low_speed = 0;
+    public static int high_speed = 20;
+    public static byte low_speed = 1;
     public static byte speed_flag = 3;
-    public static byte high_incline = 20;
-    public static byte low_incline = 20;
+    public static byte high_incline = 15;
+    public static byte low_incline = 3;
 
     public static int stratTime = 3000;    //启动时间
     public static int totaltime = 0;    //正计时间
     public static int totalmeter = 0;   //正计距离
 
-    public static byte speed= 0;        //当前速度
+    public static int speed= 0;        //当前速度
     public static byte incline = 0;     //当前坡度
 
-    public static byte tartget_speed= 10;        //目标速度
-    public static byte tartget_incline = 10;     //目标坡度
+    public static int tartget_speed= 0;        //目标速度
+    public static byte tartget_incline = 0;     //目标坡度
+    public static int actual_tartget_speed= 0;        //目标实际速度
+    public static byte actual_tartget_incline = 0;     //目标实际坡度
 
     public static CountDownTimer countDownTimer;
     private static TextView timerTextView; // 显示计时的 TextView
+    private static TextView distanceTextView;
     public static boolean isPaused = false;  // 标识倒计时是否暂停
-    private static boolean isTiming = false;  // 标识是否正在计时
+
 
     public static TextView textViewSpeed;       //当前速度
     public static TextView textViewIncline;     //当前坡度
@@ -55,12 +57,15 @@ public class MainActivity extends AppCompatActivity {
 
     public static Dialog dialog;
     private Serialport serialPort;
-    private TreadmillManager treadmillManager;
-    private int fd = -1;
+    private static TreadmillManager treadmillManager;
+//    private int fd = -1;
 
     private HandlerThread handlerThread;
     private Handler backgroundHandler;
     private Handler mainHandler;
+    //此处判断【确认】按钮是否按下
+    private boolean flag_confrim = false;
+    public static  int devState = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -72,36 +77,29 @@ public class MainActivity extends AppCompatActivity {
         serialPort = new Serialport();
         treadmillManager = new TreadmillManager("/dev/ttyS2",19200);
         // 创建 HandlerThread
-        handlerThread = new HandlerThread("DataHandlerThread");
-        handlerThread.start();
+//        handlerThread = new HandlerThread("DataHandlerThread");
+//        handlerThread.start();
 
         // 创建 Handler 用于处理背景线程的任务
         backgroundHandler = new Handler();
         // 创建主线程 Handler
         mainHandler = new Handler(Looper.getMainLooper());
-
-        //获取速度信息
-        treadmillManager.fetchDeviceInfo("getSpeed");
-        byte[] frame = new byte[15];
-        treadmillManager.receiveprot(frame);
-
         backgroundHandler.post(new Runnable() {
             @Override
             public void run() {
-                backgroundHandler.postDelayed(this,100);
-                treadmillManager.controlDevice("startDevice");
+                backgroundHandler.postDelayed(this,1000);
+                //设备状态检测
+//                checkDeviceState();
+//                if(devState == 3 || devState == 4){//running状态 || stopping状态
+//                    onValueChanged_actual();    //更新当前速度，当前坡度，正计时间，正计距离信息
+//                }
 //                System.out.println("===>gooooooooooo");
-//                treadmillManager.controlDevice("setSpeed");
-//                treadmillManager.controlDevice("setIncline");
-                //处理串口数据的收发
-                byte[] frame = new byte[15];
-                treadmillManager.receiveprot(frame);
+
                 // 将数据发送到主线程进行UI更新
                 mainHandler.post(new Runnable() {
                     @Override
                     public void run() {
-                        //UI界面更新
-                        updateUI();
+                        updateUI();//UI界面更新
                     }
                 });
             }
@@ -116,7 +114,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void showAdjustDialog(String title, int initialValue) {
-
         dialog.setContentView(R.layout.dialog_adjust_value);
 
         TextView dialogTitle = dialog.findViewById(R.id.dialogTitle);
@@ -143,8 +140,6 @@ public class MainActivity extends AppCompatActivity {
                 if(tartget_incline < high_incline)
                     currentValue.setText(String.valueOf(++tartget_incline));
             }
-            if(value < 20)
-                currentValue.setText(String.valueOf(++value));
         });
 
         buttonDecrease.setOnClickListener(v -> {
@@ -155,7 +150,6 @@ public class MainActivity extends AppCompatActivity {
                     tartget_speed -= 1;
                     currentValue.setText(String.valueOf(tartget_speed));
                 }
-
             }
             if(title.equals("坡度")){
                 tartget_incline = value;
@@ -163,18 +157,16 @@ public class MainActivity extends AppCompatActivity {
                     tartget_incline -= 1;
                     currentValue.setText(String.valueOf(tartget_incline));
                 }
-
             }
 
         });
 
         // 预设值按钮点击事件
         View.OnClickListener presetClickListener = v -> {
-
-
             byte value = Byte.parseByte(((Button) v).getText().toString());
             currentValue.setText(String.valueOf(value));
         };
+
         presetValue1.setOnClickListener(presetClickListener);
         presetValue2.setOnClickListener(presetClickListener);
         presetValue3.setOnClickListener(presetClickListener);
@@ -182,11 +174,10 @@ public class MainActivity extends AppCompatActivity {
         // 调用回调，将新值传递给 MainActivity
         dialog.findViewById(R.id.buttonConfirm).setOnClickListener(v -> {
             byte newValue = Byte.parseByte(currentValue.getText().toString());
-
             // 调用回调，将新值传递给 MainActivity
-            onValueChanged(title,newValue);
-
+            onValueChanged_target(title,newValue);
             dialog.dismiss();
+            flag_confrim = true;        //点击确认需要重新发送目标速度坡度
         });
 
         dialog.show();
@@ -206,30 +197,39 @@ public class MainActivity extends AppCompatActivity {
         buttonIncline = findViewById(R.id.buttonIncline);
 
         timerTextView = findViewById(R.id.timer_text_view); // 假设布局中增加了此 TextView
-
-        // 设置 Start/Pause 按钮的点击事件
+        distanceTextView = findViewById(R.id.distance_text_view); // 假设布局中增加了此 TextView
+//      检测开始按钮是否按下
         buttonStart.setOnClickListener(v ->{
-            handleStartPause();
+            handleStart();
         });
-        //发送启动设备指令，收到启动秒数，将其修改为启动时间，到达启动时间后，发送目标坡度和目标速度。
-        buttonPause.setOnClickListener(v -> pauseTimer());
+//        treadmillManager.controlDevice("setSpeed");
 
+        if(actual_tartget_speed != tartget_speed){
+            byte[] frame = new byte[15];
+            treadmillManager.controlDevice("setSpeed");
+            treadmillManager.receiveprot(frame);
+            treadmillManager.Frameanalyze(frame);
+        }
+//        treadmillManager.controlDevice("setIncline");
+        if(actual_tartget_incline != tartget_incline){
+            byte[] frame = new byte[15];
+            treadmillManager.controlDevice("setIncline");
+            treadmillManager.receiveprot(frame);
+            treadmillManager.Frameanalyze(frame);
+        }
+        //检测暂停按钮是否按下
+        buttonPause.setOnClickListener(v -> {
+            handlePause();
+        });
+
+        //检查Stop按钮是否按下
         buttonFinish.setOnClickListener(v -> {
-            speed = 0;
-            updateSpeedDisplay();
-            incline = 0;
-            updateInclineDisplay();
-            finishOperation();
+                    handleStop();
         });
-
-
-//        // 读取保存的速度和坡度值
-//        SharedPreferences sharedPreferences = getSharedPreferences("TreadmillPrefs", MODE_PRIVATE);
-//        speed = sharedPreferences.getAll("speed", 0);    // 读取速度，默认值为 0
-//        incline = sharedPreferences.getAll("incline", 0); // 读取坡度，默认值为 0
 
         updateTargetSpeedDisplay();
         updateTargetInclineDisplay();
+
         // 设置速度按钮点击事件---此时为targetSpeed
         MainActivity.buttonSpeed.setOnClickListener(v -> {
             showAdjustDialog("速度", MainActivity.tartget_speed);
@@ -238,6 +238,7 @@ public class MainActivity extends AppCompatActivity {
         // 设置坡度按钮点击事件---此时为targetIncline
         MainActivity.buttonIncline.setOnClickListener(v -> showAdjustDialog("坡度", MainActivity.tartget_incline));
     }
+
     // 显示倒计时弹窗
     void showCountdownDialog(int time) {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
@@ -291,13 +292,29 @@ public class MainActivity extends AppCompatActivity {
         MainActivity.isPaused = false;
     }
 
-    public void onValueChanged(String title, byte newValue){
+    public void onValueChanged_target(String title, byte newValue){
         Context context = null;
         if (title.equals("速度")) {
             MainActivity.tartget_speed = newValue;
+            byte[] frame = new byte[15];
+
+            //发送目标速度，目标坡度
+            treadmillManager.controlDevice("setSpeed");
+            treadmillManager.receiveprot(frame);
+            treadmillManager.Frameanalyze(frame);
+//            while(actual_tartget_speed == 0){
+//
+//            }
             updateTargetSpeedDisplay();
         } else if (title.equals("坡度")) {
             MainActivity.tartget_incline = newValue;
+            byte[] frame = new byte[15];
+            treadmillManager.controlDevice("setIncline");
+            treadmillManager.receiveprot(frame);
+            treadmillManager.Frameanalyze(frame);
+//            while(actual_tartget_incline == 0){
+//
+//            }
             updateTargetInclineDisplay();
         }
 
@@ -307,6 +324,12 @@ public class MainActivity extends AppCompatActivity {
         editor.putInt("speed", MainActivity.tartget_speed);
         editor.putInt("incline", MainActivity.tartget_incline);
         editor.apply();
+    }
+    public void onValueChanged_actual(){
+        updateSpeedDisplay();
+        updateInclineDisplay();
+        updateTimerDisplay();
+        updatedistanceDisplay();
     }
 
     // 更新当前速度显示
@@ -325,48 +348,99 @@ public class MainActivity extends AppCompatActivity {
 
     // 更新目标坡度显示
     private static void updateTargetInclineDisplay() {
-        MainActivity.textViewTargetIncline.setText("目标坡度: " + MainActivity.tartget_incline);
-    }
-    // 更新距离显示
-    public  static void updateMeterDisplay() {
-        MainActivity.textViewSpeed.setText("Distance:" + MainActivity.totalmeter + "m");
+        MainActivity.textViewTargetIncline.setText("目标坡度: " + MainActivity.actual_tartget_incline);//!注意这里要读什么数据？
     }
 
-    // 更新时间显示
-    private static void updateTimeDisplay() {
-        MainActivity.textViewIncline.setText("Elapsed Time: " + MainActivity.totaltime + "s");
+    // 更新正计时间显示
+    public  static void updateTimerDisplay() {
+        MainActivity.timerTextView.setText("Elapsed Time: " + MainActivity.totaltime + "s");
     }
-    // 开始操作
-    private void handleStartPause() {
-        if (isTiming) {
-            // 如果在计时状态，则暂停或继续计时
-//            toggleTimer();    //这里需要不断读取时间、距离等信息
-        } else if (isPaused) {
+
+    // 更新正计距离显示
+    private static void updatedistanceDisplay() {
+        MainActivity.distanceTextView.setText("Distance:" + MainActivity.totalmeter + "m");
+    }
+    /*点击开始按钮
+     * 1.发送启动设备指令，收到启动秒数，将其修改为启动时间
+     * 2.发送目标速度，目标坡度--获取实际目标速度、实际目标坡度
+     * 3.进行比较如果两个值相等则不需要进行处理，如果不相等则需要再次发送目标值。
+     * */
+    private void handleStart() {
+        if (isPaused) {
             buttonStart.setText("START");
         } else {
-            showCountdownDialog(stratTime);//这里更新不同的底层启动时间
+            showCountdownDialog(stratTime);
         }
-        // TODO: 结束操作的逻辑处理，例如重置计时或其他状态
+        // TODO: 开始操作的逻辑处理
+        byte[] frame = new byte[15];
+        treadmillManager.controlDevice("startDevice");
+        treadmillManager.receiveprot(frame);
+        treadmillManager.Frameanalyze(frame);
+
+//        //发送目标速度，目标坡度
+//        while(actual_tartget_speed == 0){
+//            treadmillManager.controlDevice("setSpeed");
+//            treadmillManager.receiveprot(frame);
+//            treadmillManager.Frameanalyze(frame);
+//        }
+//
+//        while(actual_tartget_incline == 0){
+//            treadmillManager.controlDevice("setIncline");
+//            treadmillManager.receiveprot(frame);
+//            treadmillManager.Frameanalyze(frame);
+//        }
     }
-    // 暂停
-    static void pauseTimer() {
-        if (isTiming) {
-//            toggleTimer();
-        } else if (countDownTimer != null) {
+
+    /*点击暂停按钮
+     * 1.发送暂停设备控制指令
+     * 2.接收返回数据，看是否为暂停控制指令
+     * */
+    static void handlePause() {
+        if (countDownTimer != null) {
             countDownTimer.cancel();
             buttonStart.setText("Continue");
             isPaused = true;
         }
+        treadmillManager.controlDevice("pauseDevice");
+
+    }
+    /*点击STOP按钮
+     * 1.发送停止设备控制指令
+     * 2.接收返回数据检查是否为stop指令
+     * */
+    static void handleStop(){
+        tartget_speed = 0;
+        tartget_incline = 0;
+        treadmillManager.controlDevice("stopDevice");
+        finishOperation();
     }
     // 完成操作，重置状态
     public static void finishOperation() {
         if (countDownTimer != null) {
             countDownTimer.cancel();
         }
-        if (isTiming) {
-//            stopTimer();
-        }
+        updateTargetInclineDisplay();
+        updateTargetSpeedDisplay();
         resetButtons();
         // TODO: 结束操作的逻辑处理，例如重置计时或其他状态
+    }
+    public void GetMachineInfo(){
+        //获取速度信息
+        treadmillManager.fetchDeviceInfo("getSpeed");
+        byte[] frame = new byte[15];
+        treadmillManager.receiveprot(frame);
+        treadmillManager.Frameanalyze(frame);
+
+        //获取坡度信息
+        treadmillManager.fetchDeviceInfo("getIncline");
+        treadmillManager.receiveprot(frame);
+        treadmillManager.Frameanalyze(frame);
+    }
+
+    public static void checkDeviceState(){
+        treadmillManager.fetchDeviceState();
+        byte[] frame = new byte[15];
+        treadmillManager.receiveprot(frame);
+        devState = treadmillManager.Frameanalyze(frame);
     }
 }
